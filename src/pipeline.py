@@ -1,6 +1,7 @@
 """Pipeline orchestrator — wires all steps from JD to PDF."""
 
 import logging
+import re
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -14,7 +15,7 @@ from .adapters import (
     remove_ai_phrases_text,
 )
 from .models import JobPosting, TailorResult
-from .pdf_compiler import compile_to_pdf
+from .pdf_compiler import compile_to_pdf, get_page_count
 from .resume_tailor import tailor_resume
 from .state import ProcessedJobsState
 
@@ -176,10 +177,24 @@ async def process_single_job(
     tex_path.write_text(tailored_tex, encoding="utf-8")
     print(f"  Saved: {tex_path}")
 
-    # 9. Compile PDF
+    # 9. Compile PDF + 1-page enforcement (font size fallback)
     compiled_pdf = compile_to_pdf(tailored_tex, pdf_path)
     if compiled_pdf:
-        print(f"  Saved: {compiled_pdf}")
+        page_count = get_page_count(compiled_pdf)
+        if page_count > 1:
+            print(f"  Resume is {page_count} pages — reducing font size to 10pt...")
+            tailored_tex = re.sub(
+                r"\\documentclass\[11pt\]", r"\\documentclass[10pt]", tailored_tex
+            )
+            tex_path.write_text(tailored_tex, encoding="utf-8")
+            compiled_pdf = compile_to_pdf(tailored_tex, pdf_path)
+            if compiled_pdf:
+                retry_pages = get_page_count(compiled_pdf)
+                if retry_pages > 1:
+                    print(f"  Warning: still {retry_pages} pages after font reduction")
+                else:
+                    print(f"  Font reduction successful — 1 page")
+        print(f"  Saved: {compiled_pdf or pdf_path}")
     else:
         print("  PDF compilation skipped (pdflatex not available)")
 

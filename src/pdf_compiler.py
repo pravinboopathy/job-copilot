@@ -1,12 +1,46 @@
 """pdflatex compilation wrapper."""
 
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def get_page_count(pdf_path: Path) -> int:
+    """Count pages in a PDF.
+
+    Uses pdfinfo if available, falls back to scanning PDF binary for page count.
+    Returns -1 if page count cannot be determined.
+    """
+    # Try pdfinfo first
+    if shutil.which("pdfinfo"):
+        try:
+            result = subprocess.run(
+                ["pdfinfo", str(pdf_path)],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            for line in result.stdout.splitlines():
+                if line.startswith("Pages:"):
+                    return int(line.split(":")[1].strip())
+        except (subprocess.TimeoutExpired, ValueError):
+            pass
+
+    # Fallback: scan PDF binary for /Count entries
+    try:
+        content = pdf_path.read_bytes()
+        matches = re.findall(rb"/Count\s+(\d+)", content)
+        if matches:
+            return max(int(m) for m in matches)
+    except OSError:
+        pass
+
+    return -1
 
 
 def check_pdflatex() -> bool:

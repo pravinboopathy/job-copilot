@@ -1,6 +1,7 @@
 """LLM-based resume tailoring using Resume Matcher's LiteLLM wrapper."""
 
 import logging
+import re
 from typing import Any
 
 from app.llm import LLMConfig, complete
@@ -10,6 +11,30 @@ from .adapters import sanitize_input
 from .models import JobPosting, TailorOutput
 
 logger = logging.getLogger(__name__)
+
+
+def _count_content_budget(base_tex: str) -> str:
+    """Parse base LaTeX to compute a content budget string for the LLM prompt.
+
+    Counts \\item entries, skills lines, and position/project entries so the LLM
+    knows the exact content capacity of a single page.
+    """
+    item_count = len(re.findall(r"\\item\b", base_tex))
+    skills_lines = len(re.findall(r"\\textbf\{[^}]*:\}", base_tex))
+
+    # Count position/project entries (lines with \textbf{...} followed by \hfill)
+    entry_count = len(re.findall(r"\\textbf\{.*?\}.*\\hfill", base_tex))
+
+    lines = [
+        "CONTENT BUDGET — the base resume fits exactly 1 page with these counts. Do NOT exceed them:",
+        f"- Total \\item bullet points: {item_count}",
+        f"- Position/project entries: {entry_count}",
+        f"- Skills lines: {skills_lines}",
+        "- You may rephrase, reorder, or replace bullets but NOT add extras.",
+        "- Do NOT add new position or project entries.",
+        "- Keep each bullet point to 2 lines of text maximum.",
+    ]
+    return "\n".join(lines)
 
 
 def build_system_prompt(strategy: str = "full") -> str:
@@ -39,6 +64,10 @@ You must output exactly three sections, separated by these delimiters:
 [Bullet list of specific changes you made and why]
 
 IMPORTANT:
+- The resume MUST fit on exactly ONE page. Do not add content that would push it to a second page.
+- Do NOT add more bullet points than exist in the original resume. You may replace bullets but not increase the total count.
+- If you need to add keywords, rephrase existing bullets rather than adding new ones.
+- Prefer concise phrasing. Remove filler to make room for relevant keywords.
 - Preserve ALL LaTeX commands, environments, and formatting
 - Do not add \\usepackage commands or modify the preamble
 - Every \\item, \\section, \\textbf etc. must remain syntactically valid
@@ -80,6 +109,7 @@ def build_user_prompt(
     """Build the user message with sanitized JD and structured keywords."""
     sanitized_jd = sanitize_input(job.description)
     keywords_section = _format_keywords(jd_keywords)
+    content_budget = _count_content_budget(base_tex)
 
     return f"""## Job Details
 **Title:** {job.title}
@@ -91,6 +121,8 @@ def build_user_prompt(
 
 ## Extracted Keywords
 {keywords_section}
+
+## {content_budget}
 
 ## Base Resume (LaTeX)
 ```latex
