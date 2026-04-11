@@ -114,6 +114,66 @@ Output goes to `data/output/`:
 
 ---
 
+## Cron Job + Email Notifications
+
+Automate the pipeline to run every 6 hours and email results with PDFs and apply links.
+
+### 1. Enable Gmail Send Scope
+
+The `gmail.send` scope is already configured in the code. Delete your existing token to re-auth with the new scope:
+
+```bash
+rm config/token.json
+python -m src.cli test-gmail
+```
+
+This opens a browser — grant both read and send permissions.
+
+### 2. Configure Notification Email
+
+Already set in `config/config.yaml`:
+
+```yaml
+notification:
+  email: "boopathypravin@gmail.com"
+```
+
+### 3. Test Email Notification
+
+```bash
+python -m src.cli run --source email --limit 1 --notify
+```
+
+You should receive an email with:
+- HTML table: Job Title, Company, Location, Match %, Apply link
+- PDF attachments for each tailored resume
+
+### 4. Install Cron Job
+
+```bash
+crontab -e
+```
+
+Add this line (runs every 6 hours):
+
+```
+0 */6 * * * /Users/pravinboopathy/projects/resume_tailor/tools/job-tailor/scripts/cron_run.sh
+```
+
+The cron wrapper script (`scripts/cron_run.sh`) activates the environment, optionally connects VPN, runs the pipeline with `--notify`, and logs output to `data/cron.log`.
+
+### 5. Verify
+
+```bash
+# Check cron is installed
+crontab -l
+
+# Check logs after a run
+tail -50 data/cron.log
+```
+
+---
+
 ## Future: Docker Deployment
 
 > Not yet implemented. Documented here for future reference.
@@ -160,17 +220,7 @@ For VPN in Docker, use `--network host` with Surfshark CLI running on the host, 
 
 ## Future: Automated Pipeline (Optional)
 
-> End-to-end automation from email alert to tailored resume.
-
-### Scheduled Runs
-
-Use cron or launchd to run the pipeline on a schedule:
-
-```bash
-# crontab -e
-# Run every 6 hours, VPN connect before, disconnect after
-0 */6 * * * surfshark-cli connect && cd /path/to/tools/job-tailor && python -m src.cli run --source email && surfshark-cli disconnect
-```
+> Further automation beyond the current cron + email setup.
 
 ### Integration with Resume Matcher Web App
 

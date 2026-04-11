@@ -31,3 +31,6 @@ output:
 
 state:
   path: "data/processed_jobs.json"
+
+notification:
+  email: "boopathypravin@gmail.com"

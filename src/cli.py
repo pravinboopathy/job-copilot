@@ -83,11 +83,12 @@ def cli(ctx: click.Context, config: str, verbose: bool) -> None:
 )
 @click.option("--limit", "-n", default=None, type=int, help="Max jobs to process")
 @click.option("--dry-run", is_flag=True, help="Fetch JDs without tailoring")
+@click.option("--notify", is_flag=True, help="Email results after processing")
 @click.pass_context
-def run(ctx: click.Context, source: str, limit: int | None, dry_run: bool) -> None:
+def run(ctx: click.Context, source: str, limit: int | None, dry_run: bool, notify: bool) -> None:
     """Process new jobs from Gmail alerts or LinkedIn search."""
     config = ctx.obj["config"]
-    asyncio.run(_run_pipeline(config, source, limit, dry_run))
+    asyncio.run(_run_pipeline(config, source, limit, dry_run, notify))
 
 
 async def _run_pipeline(
@@ -95,6 +96,7 @@ async def _run_pipeline(
     source: str,
     limit: int | None,
     dry_run: bool,
+    notify: bool = False,
 ) -> None:
     from .models import JobPosting
 
@@ -124,6 +126,24 @@ async def _run_pipeline(
     click.echo(f"\nDone. Processed {len(results)} jobs.")
     for r in results:
         click.echo(f"  {r.job.title} at {r.job.company}: {r.pre_match:.0f}% → {r.post_match:.0f}%")
+
+    if notify and results:
+        from .gmail_client import GmailClient
+
+        notify_cfg = config.get("notification", {})
+        email_to = notify_cfg.get("email", "")
+        if not email_to:
+            click.echo("Warning: notification.email not set in config.yaml", err=True)
+            return
+
+        gmail_cfg = config.get("gmail", {})
+        gmail = GmailClient(
+            credentials_path=gmail_cfg.get("credentials_path", "config/credentials.json"),
+            token_path=gmail_cfg.get("token_path", "config/token.json"),
+        )
+        gmail.authenticate()
+        gmail.send_results_email(to=email_to, results=results)
+        click.echo(f"Results emailed to {email_to}")
 
 
 async def _get_jobs_from_email(

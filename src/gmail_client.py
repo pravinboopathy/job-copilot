@@ -1,7 +1,11 @@
-"""Gmail API client for fetching LinkedIn job alert emails."""
+"""Gmail API client for fetching and sending emails."""
 
 import base64
 import logging
+from datetime import date
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +16,10 @@ from googleapiclient.discovery import build
 
 logger = logging.getLogger(__name__)
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+]
 
 
 class GmailClient:
@@ -118,3 +125,72 @@ class GmailClient:
                     return html
 
         return ""
+
+    def send_results_email(self, to: str, results: list[Any]) -> None:
+        """Send an HTML email with tailoring results and attached PDFs.
+
+        Args:
+            to: Recipient email address
+            results: List of TailorResult objects
+        """
+        if not self.service:
+            self.authenticate()
+
+        today = date.today().isoformat()
+        subject = f"Job Tailor: {len(results)} resumes tailored — {today}"
+
+        # Build HTML body
+        rows = ""
+        for r in results:
+            rows += (
+                f"<tr>"
+                f"<td style='padding:8px;border:1px solid #ddd'>{r.job.title}</td>"
+                f"<td style='padding:8px;border:1px solid #ddd'>{r.job.company}</td>"
+                f"<td style='padding:8px;border:1px solid #ddd'>{r.job.location or 'N/A'}</td>"
+                f"<td style='padding:8px;border:1px solid #ddd'>{r.pre_match:.0f}% → {r.post_match:.0f}%</td>"
+                f"<td style='padding:8px;border:1px solid #ddd'>"
+                f"<a href='{r.job.url}'>Apply</a></td>"
+                f"</tr>"
+            )
+
+        html_body = f"""<html><body>
+<h2>Job Tailor Results — {today}</h2>
+<table style='border-collapse:collapse;width:100%'>
+<tr style='background:#f2f2f2'>
+<th style='padding:8px;border:1px solid #ddd;text-align:left'>Job</th>
+<th style='padding:8px;border:1px solid #ddd;text-align:left'>Company</th>
+<th style='padding:8px;border:1px solid #ddd;text-align:left'>Location</th>
+<th style='padding:8px;border:1px solid #ddd;text-align:left'>Match</th>
+<th style='padding:8px;border:1px solid #ddd;text-align:left'>Apply</th>
+</tr>
+{rows}
+</table>
+<p>PDFs attached. Click "Apply" links to open LinkedIn job pages.</p>
+</body></html>"""
+
+        # Build MIME message
+        msg = MIMEMultipart()
+        msg["to"] = to
+        msg["subject"] = subject
+        msg.attach(MIMEText(html_body, "html"))
+
+        # Attach PDFs
+        for r in results:
+            if r.pdf_path:
+                pdf_path = Path(r.pdf_path)
+                if pdf_path.exists():
+                    with open(pdf_path, "rb") as f:
+                        attachment = MIMEApplication(f.read(), _subtype="pdf")
+                    filename = f"{r.job.company}_{r.job.title}.pdf".replace(" ", "_")
+                    attachment.add_header(
+                        "Content-Disposition", "attachment", filename=filename
+                    )
+                    msg.attach(attachment)
+
+        # Send
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+        self.service.users().messages().send(
+            userId="me", body={"raw": raw}
+        ).execute()
+
+        logger.info("Results email sent to %s", to)
