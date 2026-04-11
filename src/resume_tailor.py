@@ -68,6 +68,7 @@ IMPORTANT:
 - Do NOT add more bullet points than exist in the original resume. You may replace bullets but not increase the total count.
 - If you need to add keywords, rephrase existing bullets rather than adding new ones.
 - Prefer concise phrasing. Remove filler to make room for relevant keywords.
+- Every bullet point must start with a capitalized action verb (e.g., "Built", "Designed", "Engineered")
 - Preserve ALL LaTeX commands, environments, and formatting
 - Do not add \\usepackage commands or modify the preamble
 - Every \\item, \\section, \\textbf etc. must remain syntactically valid
