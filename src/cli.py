@@ -13,6 +13,8 @@ from dotenv import load_dotenv
 
 from app.llm import LLMConfig
 
+from .gmail_client import DEFAULT_GMAIL_QUERY
+
 # Load .env from the job-tailor directory
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -82,19 +84,21 @@ def cli(ctx: click.Context, config: str, verbose: bool) -> None:
     help="Job source: Gmail alerts or LinkedIn search",
 )
 @click.option("--limit", "-n", default=None, type=int, help="Max jobs to process")
+@click.option("--days", "-d", default=None, type=int, help="Look back N days (default: 1). Use for backfilling.")
 @click.option("--dry-run", is_flag=True, help="Fetch JDs without tailoring")
 @click.option("--notify", is_flag=True, help="Email results after processing")
 @click.pass_context
-def run(ctx: click.Context, source: str, limit: int | None, dry_run: bool, notify: bool) -> None:
+def run(ctx: click.Context, source: str, limit: int | None, days: int | None, dry_run: bool, notify: bool) -> None:
     """Process new jobs from Gmail alerts or LinkedIn search."""
     config = ctx.obj["config"]
-    asyncio.run(_run_pipeline(config, source, limit, dry_run, notify))
+    asyncio.run(_run_pipeline(config, source, limit, days, dry_run, notify))
 
 
 async def _run_pipeline(
     config: dict[str, Any],
     source: str,
     limit: int | None,
+    days: int | None,
     dry_run: bool,
     notify: bool = False,
 ) -> None:
@@ -103,7 +107,7 @@ async def _run_pipeline(
     jobs: list[JobPosting] = []
 
     if source == "email":
-        jobs = await _get_jobs_from_email(config, limit)
+        jobs = await _get_jobs_from_email(config, limit, days)
     elif source == "search":
         jobs = _get_jobs_from_search(config, limit)
 
@@ -149,8 +153,11 @@ async def _run_pipeline(
 async def _get_jobs_from_email(
     config: dict[str, Any],
     limit: int | None,
+    days: int | None = None,
 ) -> list:
     """Fetch jobs from Gmail alerts → LinkedIn."""
+    import re
+
     from .email_parser import parse_linkedin_alert
     from .gmail_client import GmailClient
     from .linkedin_client import LinkedInClient
@@ -163,7 +170,9 @@ async def _get_jobs_from_email(
     )
     gmail.authenticate()
 
-    query = gmail_cfg.get("query", "{from:jobs-noreply@linkedin.com from:jobalerts-noreply@linkedin.com from:jobs-listings@linkedin.com} newer_than:1d")
+    query = gmail_cfg.get("query", DEFAULT_GMAIL_QUERY)
+    if days is not None:
+        query = re.sub(r"newer_than:\d+d", f"newer_than:{days}d", query)
     max_results = gmail_cfg.get("max_results", 20)
     emails = gmail.fetch_alert_emails(query=query, max_results=max_results)
 
@@ -321,7 +330,7 @@ def test_gmail(ctx: click.Context) -> None:
     gmail.authenticate()
     click.echo("Authentication successful!")
 
-    query = gmail_cfg.get("query", "{from:jobs-noreply@linkedin.com from:jobalerts-noreply@linkedin.com from:jobs-listings@linkedin.com} newer_than:1d")
+    query = gmail_cfg.get("query", DEFAULT_GMAIL_QUERY)
     click.echo(f"Searching: {query}")
     emails = gmail.fetch_alert_emails(query=query, max_results=5)
 

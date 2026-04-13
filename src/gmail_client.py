@@ -21,6 +21,16 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
 ]
 
+LINKEDIN_SENDERS = [
+    "jobs-noreply@linkedin.com",
+    "jobalerts-noreply@linkedin.com",
+    "jobs-listings@linkedin.com",
+]
+
+DEFAULT_GMAIL_QUERY = (
+    "{" + " ".join(f"from:{s}" for s in LINKEDIN_SENDERS) + "} newer_than:1d"
+)
+
 
 class GmailClient:
     """Fetch LinkedIn job alert emails via Gmail API."""
@@ -63,7 +73,7 @@ class GmailClient:
 
     def fetch_alert_emails(
         self,
-        query: str = "{from:jobs-noreply@linkedin.com from:jobalerts-noreply@linkedin.com from:jobs-listings@linkedin.com} newer_than:1d",
+        query: str = DEFAULT_GMAIL_QUERY,
         max_results: int = 20,
     ) -> list[dict[str, str]]:
         """Fetch emails matching query.
