@@ -33,6 +33,15 @@ def sanitize_input(text: str) -> str:
     return sanitized
 
 
+def capitalize_bullets(tex: str) -> str:
+    """Capitalize the first letter after each \\item in LaTeX."""
+    return re.sub(
+        r"(\\item\s+)([a-z])",
+        lambda m: m.group(1) + m.group(2).upper(),
+        tex,
+    )
+
+
 def keyword_in_text(keyword: str, text: str) -> bool:
     """Check if keyword exists as a whole word in text.
 

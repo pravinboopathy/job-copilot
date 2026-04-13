@@ -11,6 +11,7 @@ from app.llm import LLMConfig
 from .adapters import (
     analyze_keyword_gaps_text,
     calculate_keyword_match_text,
+    capitalize_bullets,
     extract_keywords,
     remove_ai_phrases_text,
 )
@@ -159,7 +160,10 @@ async def process_single_job(
         if removed_phrases:
             print(f"  Cleaned {len(removed_phrases)} AI phrases")
 
-    # 7. Post-tailor analysis (deterministic)
+    # 7. Capitalize bullet points (deterministic)
+    tailored_tex = capitalize_bullets(tailored_tex)
+
+    # 8. Post-tailor analysis (deterministic)
     post_analysis = analyze_keyword_gaps_text(jd_keywords, tailored_tex, base_tex)
     post_match = post_analysis["current_match_percentage"]
     potential_match = post_analysis["potential_match_percentage"]
