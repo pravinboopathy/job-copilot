@@ -1,7 +1,7 @@
 gmail:
   credentials_path: "config/credentials.json"
   token_path: "config/token.json"
-  query: "from:jobs-noreply@linkedin.com newer_than:1d"
+  query: "{from:jobs-noreply@linkedin.com from:jobalerts-noreply@linkedin.com from:jobs-listings@linkedin.com} newer_than:1d"
   max_results: 20
 
 linkedin:

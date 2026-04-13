@@ -63,7 +63,7 @@ class GmailClient:
 
     def fetch_alert_emails(
         self,
-        query: str = "from:jobs-noreply@linkedin.com newer_than:1d",
+        query: str = "{from:jobs-noreply@linkedin.com from:jobalerts-noreply@linkedin.com from:jobs-listings@linkedin.com} newer_than:1d",
         max_results: int = 20,
     ) -> list[dict[str, str]]:
         """Fetch emails matching query.

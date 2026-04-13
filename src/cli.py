@@ -163,7 +163,7 @@ async def _get_jobs_from_email(
     )
     gmail.authenticate()
 
-    query = gmail_cfg.get("query", "from:jobs-noreply@linkedin.com newer_than:1d")
+    query = gmail_cfg.get("query", "{from:jobs-noreply@linkedin.com from:jobalerts-noreply@linkedin.com from:jobs-listings@linkedin.com} newer_than:1d")
     max_results = gmail_cfg.get("max_results", 20)
     emails = gmail.fetch_alert_emails(query=query, max_results=max_results)
 
@@ -321,7 +321,7 @@ def test_gmail(ctx: click.Context) -> None:
     gmail.authenticate()
     click.echo("Authentication successful!")
 
-    query = gmail_cfg.get("query", "from:jobs-noreply@linkedin.com newer_than:1d")
+    query = gmail_cfg.get("query", "{from:jobs-noreply@linkedin.com from:jobalerts-noreply@linkedin.com from:jobs-listings@linkedin.com} newer_than:1d")
     click.echo(f"Searching: {query}")
     emails = gmail.fetch_alert_emails(query=query, max_results=5)
 
