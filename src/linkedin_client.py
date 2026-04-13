@@ -1,6 +1,7 @@
 """LinkedIn guest API client for fetching job descriptions."""
 
 import logging
+import random
 import time
 from typing import Any
 
@@ -36,10 +37,11 @@ class LinkedInClient:
         self._last_request_time: float = 0.0
 
     def _rate_limit(self) -> None:
-        """Enforce minimum delay between requests."""
+        """Enforce minimum delay between requests with random jitter."""
         elapsed = time.time() - self._last_request_time
-        if elapsed < self.request_delay:
-            time.sleep(self.request_delay - elapsed)
+        jittered_delay = self.request_delay + random.uniform(0, self.request_delay)
+        if elapsed < jittered_delay:
+            time.sleep(jittered_delay - elapsed)
         self._last_request_time = time.time()
 
     def _get(self, url: str, params: dict[str, Any] | None = None) -> requests.Response:
@@ -50,7 +52,7 @@ class LinkedInClient:
             resp = self.session.get(url, params=params, timeout=30)
 
             if resp.status_code == 429:
-                wait = self.request_delay * (2 ** attempt)
+                wait = self.request_delay * (2 ** attempt) + random.uniform(0, 2)
                 logger.warning("Rate limited (429), waiting %.0fs", wait)
                 time.sleep(wait)
                 continue
