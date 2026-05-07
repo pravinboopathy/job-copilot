@@ -4,11 +4,10 @@ services:
       context: ../..
       dockerfile: tools/job-tailor/Dockerfile
     env_file: .env
+    privileged: true
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
-    sysctls:
-      - net.ipv4.conf.all.src_valid_mark=1
     devices:
       - /dev/net/tun
     volumes:
