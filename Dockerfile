@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wireguard-tools iproute2 iptables \
     curl procps \
     && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y openresolv \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
