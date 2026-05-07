@@ -26,7 +26,9 @@ logger = logging.getLogger(__name__)
 def _sanitize_filename(text: str) -> str:
     """Convert text to a filesystem-safe string."""
     safe = text.replace(" ", "_")
-    return "".join(c for c in safe if c.isalnum() or c in ("_", "-"))
+    safe = "".join(c for c in safe if c.isalnum() or c in ("_", "-"))
+    safe = re.sub(r"_+", "_", safe)
+    return safe.strip("_-")
 
 
 def _build_output_prefix(job: JobPosting, config: dict[str, Any]) -> str:
