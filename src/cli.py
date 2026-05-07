@@ -186,8 +186,17 @@ async def _get_jobs_from_email(
 
     click.echo(f"Found {len(all_refs)} job references from {len(emails)} emails")
 
+    # Filter out already-processed jobs before applying limit
+    from .state import ProcessedJobsState
+
+    state_path = config.get("state", {}).get("path", "data/processed_jobs.json")
+    state = ProcessedJobsState(state_path)
+    unprocessed = [ref for ref in all_refs if not state.is_processed(ref.job_id)]
+    click.echo(f"  {len(unprocessed)} unprocessed, {len(all_refs) - len(unprocessed)} already done")
+
     if limit:
-        all_refs = all_refs[:limit]
+        unprocessed = unprocessed[:limit]
+    all_refs = unprocessed
 
     # Fetch full JDs
     linkedin_cfg = config.get("linkedin", {})
@@ -228,6 +237,11 @@ def _get_jobs_from_search(
         click.echo("No search queries configured in config.yaml", err=True)
         return []
 
+    from .state import ProcessedJobsState
+
+    state_path = config.get("state", {}).get("path", "data/processed_jobs.json")
+    state = ProcessedJobsState(state_path)
+
     all_jobs: list[JobPosting] = []
     for q in queries:
         search_results = linkedin.search_jobs(
@@ -235,7 +249,9 @@ def _get_jobs_from_search(
             location=q.get("location", "United States"),
             time_filter=q.get("time_filter", "r86400"),
         )
-        # Fetch full JDs for search results (they only have metadata)
+        # Filter out already-processed before fetching full JDs
+        search_results = [r for r in search_results if not state.is_processed(r.job_id)]
+
         for result in search_results:
             try:
                 job = linkedin.fetch_job(result.job_id)
