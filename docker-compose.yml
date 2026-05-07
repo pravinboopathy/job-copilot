@@ -1,0 +1,15 @@
+services:
+  job-tailor:
+    build:
+      context: ../..
+      dockerfile: tools/job-tailor/Dockerfile
+    env_file: .env
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    volumes:
+      - ./config:/app/tools/job-tailor/config
+      - ./resume:/app/tools/job-tailor/resume
+      - ./data:/app/tools/job-tailor/data
+      - ./wg0.conf:/etc/wireguard/wg0.conf:ro
