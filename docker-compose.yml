@@ -6,8 +6,11 @@ services:
     env_file: .env
     cap_add:
       - NET_ADMIN
+      - SYS_MODULE
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
+    devices:
+      - /dev/net/tun
     volumes:
       - ./config:/app/tools/job-tailor/config
       - ./resume:/app/tools/job-tailor/resume
