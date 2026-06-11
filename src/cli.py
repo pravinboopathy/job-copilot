@@ -253,6 +253,8 @@ def _get_jobs_from_search(
             keywords=q.get("keywords", ""),
             location=q.get("location", "United States"),
             time_filter=q.get("time_filter", "r86400"),
+            max_results=q.get("max_results", 25),
+            extra_params=q.get("filters"),
         )
         # Filter out already-processed before fetching full JDs
         search_results = [r for r in search_results if not state.is_processed(r.job_id)]

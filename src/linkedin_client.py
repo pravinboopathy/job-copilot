@@ -2,11 +2,12 @@
 
 import logging
 import random
+import re
 import time
 from typing import Any
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from .models import JobPosting
 
@@ -15,6 +16,11 @@ logger = logging.getLogger(__name__)
 _BASE_URL = "https://www.linkedin.com/jobs-guest/jobs/api"
 _JOB_DETAIL_URL = f"{_BASE_URL}/jobPosting/{{job_id}}"
 _JOB_SEARCH_URL = f"{_BASE_URL}/seeMoreJobPostings/search"
+
+# Search-result hrefs look like .../jobs/view/<slug>-<numeric-id>?... — the ID
+# is the trailing digits before any query/fragment. Email-alert URLs use a
+# bare numeric segment after /jobs/view/ — both shapes match this regex.
+_JOB_ID_FROM_HREF = re.compile(r"(\d+)(?:[/?#]|$)")
 
 _DEFAULT_HEADERS = {
     "User-Agent": (
@@ -25,6 +31,55 @@ _DEFAULT_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
 }
+
+
+def _extract_job_id(card: Tag, href: str) -> str:
+    """Pull the LinkedIn job_id from a search-result card.
+
+    Prefers the parent card's `data-entity-urn` (`urn:li:jobPosting:NNN`),
+    which is authoritative and survives slug-format changes. Falls back to
+    the trailing numeric ID in the href, so email-style and slug-style URLs
+    both work.
+    """
+    urn_el = card.find(attrs={"data-entity-urn": True})
+    if urn_el is not None:
+        urn = urn_el.get("data-entity-urn", "")
+        if urn.startswith("urn:li:jobPosting:"):
+            tail = urn.rsplit(":", 1)[-1]
+            if tail.isdigit():
+                return tail
+
+    match = _JOB_ID_FROM_HREF.search(href)
+    if match:
+        return match.group(1)
+    return ""
+
+
+def _merge_search_params(
+    base: dict[str, Any],
+    extra: dict[str, Any] | None,
+) -> dict[str, str]:
+    """Merge user-supplied filter params with client-controlled base params.
+
+    Base wins on collision so users can't break pagination by setting `start`
+    (or shadow `keywords`/`location`/`f_TPR`). List values are comma-joined for
+    LinkedIn (it expects `f_E=3,4`, not repeated keys). Empty/None values in
+    `extra` are dropped. All values are coerced to str.
+    """
+    merged: dict[str, str] = {}
+    if extra:
+        for k, v in extra.items():
+            if v is None or v == "":
+                continue
+            if isinstance(v, (list, tuple)):
+                if not v:
+                    continue
+                merged[k] = ",".join(str(item) for item in v)
+            else:
+                merged[k] = str(v)
+    for k, v in base.items():
+        merged[k] = str(v)
+    return merged
 
 
 class LinkedInClient:
@@ -74,6 +129,7 @@ class LinkedInClient:
         location: str = "United States",
         time_filter: str = "r86400",
         max_results: int = 25,
+        extra_params: dict[str, Any] | None = None,
     ) -> list[JobPosting]:
         """Search for jobs using the guest API.
 
@@ -82,23 +138,52 @@ class LinkedInClient:
             location: Location filter
             time_filter: Time range — r86400 (24h), r604800 (7d), r2592000 (30d)
             max_results: Maximum number of results to return
+            extra_params: Optional opaque passthrough of LinkedIn guest-API
+                filter params. Well-known codes (see the dev.to scraping
+                reference for the full list):
+                  f_WT  workplace type: 1=on-site, 2=remote, 3=hybrid
+                  f_E   experience:     1=intern, 2=entry, 3=associate,
+                                        4=mid-senior, 5=director, 6=exec
+                  f_JT  job type:       F=full-time, P=part-time, C=contract,
+                                        T=temp, V=volunteer, I=intern
+                  f_SB2 salary bucket
+                  f_C   company IDs
+                  f_I   industry
+                  f_AL  easy apply (true)
+                  geoId alternative to location string
+                  distance miles around geoId
+                  sortBy R=recent, DD=default
+                List values are comma-joined. The client-controlled keys
+                (keywords, location, f_TPR, start) override any same-named
+                entries here, so user filters can't break pagination.
+                Gotchas: passing `geoId` silently shadows `location`;
+                `sortBy=R` can shift the result set between page fetches and
+                cause duplicates/skips on long sweeps.
         """
         jobs: list[JobPosting] = []
         start = 0
+        first_page = True
 
         while len(jobs) < max_results:
-            params = {
-                "keywords": keywords,
-                "location": location,
-                "f_TPR": time_filter,
-                "start": start,
-            }
+            params = _merge_search_params(
+                {
+                    "keywords": keywords,
+                    "location": location,
+                    "f_TPR": time_filter,
+                    "start": start,
+                },
+                extra_params,
+            )
 
             try:
                 resp = self._get(_JOB_SEARCH_URL, params=params)
             except requests.HTTPError as e:
                 logger.error("Search request failed: %s", e)
                 break
+
+            if first_page:
+                logger.info("Search URL: %s", resp.url)
+                first_page = False
 
             page_jobs = self._parse_search_results(resp.text)
             if not page_jobs:
@@ -165,14 +250,7 @@ class LinkedInClient:
             if not link:
                 continue
 
-            href = link.get("href", "")
-            # Extract job ID from URL
-            job_id = ""
-            for segment in href.rstrip("/").split("/"):
-                if segment.isdigit():
-                    job_id = segment
-                    break
-
+            job_id = _extract_job_id(card, link.get("href", ""))
             if not job_id:
                 continue
 

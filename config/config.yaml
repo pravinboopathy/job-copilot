@@ -9,6 +9,16 @@ linkedin:
     - keywords: "infrastructure engineer"
       location: "United States"
       time_filter: "r86400"
+    # Filter-rich example (passed through to LinkedIn's guest API):
+    # - keywords: "platform engineer"
+    #   location: "United States"
+    #   time_filter: "r86400"     # r86400=24h, r604800=7d, r2592000=30d
+    #   max_results: 50            # default 25
+    #   filters:
+    #     f_WT: 2                  # workplace: 1=on-site 2=remote 3=hybrid
+    #     f_E: [3, 4]              # experience: 3=associate 4=mid-senior
+    #     f_JT: F                  # job type: F=FT P=PT C=contract T=temp
+    #     # f_SB2, f_C, f_I, f_AL, geoId, distance, sortBy also accepted
   request_delay_seconds: 3
 
 llm:
