@@ -229,7 +229,7 @@ def _get_jobs_from_search(
     limit: int | None,
 ) -> list:
     """Search for jobs via LinkedIn guest API."""
-    from .linkedin_client import LinkedInClient
+    from .linkedin_client import LinkedInClient, _filter_cards
     from .models import JobPosting
 
     linkedin_cfg = config.get("linkedin", {})
@@ -256,6 +256,19 @@ def _get_jobs_from_search(
             max_results=q.get("max_results", 25),
             extra_params=q.get("filters"),
         )
+        # Card-level blocklist (title/company word-boundary match, before any
+        # LinkedIn JD fetch or LLM call — strictly a cost-cutting filter).
+        before = len(search_results)
+        search_results = _filter_cards(
+            search_results,
+            title_exclude=q.get("title_exclude"),
+            company_exclude=q.get("company_exclude"),
+        )
+        if before != len(search_results):
+            click.echo(
+                f"  Card filter dropped {before - len(search_results)}/{before} "
+                f"for query: {q.get('keywords', '')[:40]}"
+            )
         # Filter out already-processed before fetching full JDs
         search_results = [r for r in search_results if not state.is_processed(r.job_id)]
 

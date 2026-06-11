@@ -33,6 +33,46 @@ _DEFAULT_HEADERS = {
 }
 
 
+def _filter_cards(
+    cards: list[JobPosting],
+    title_exclude: list[str] | None = None,
+    company_exclude: list[str] | None = None,
+) -> list[JobPosting]:
+    """Drop search-result cards whose title or company matches a blocklist.
+
+    Patterns are matched as whole words (case-insensitive) so `java` drops
+    "Java Developer" but NOT "JavaScript Developer". Empty patterns are
+    silently ignored.
+    """
+    def _compile(patterns: list[str] | None) -> re.Pattern | None:
+        if not patterns:
+            return None
+        cleaned = [re.escape(p.strip()) for p in patterns if p and p.strip()]
+        if not cleaned:
+            return None
+        # Alphanumeric lookarounds (instead of \b) so patterns starting or
+        # ending with non-word chars still anchor — `.NET` would not match
+        # under `\b\.NET\b` because there's no boundary between space and `.`.
+        return re.compile(
+            r"(?<![A-Za-z0-9])(?:" + "|".join(cleaned) + r")(?![A-Za-z0-9])",
+            re.IGNORECASE,
+        )
+
+    title_re = _compile(title_exclude)
+    company_re = _compile(company_exclude)
+    if title_re is None and company_re is None:
+        return cards
+
+    kept: list[JobPosting] = []
+    for c in cards:
+        if title_re and title_re.search(c.title):
+            continue
+        if company_re and company_re.search(c.company):
+            continue
+        kept.append(c)
+    return kept
+
+
 def _extract_job_id(card: Tag, href: str) -> str:
     """Pull the LinkedIn job_id from a search-result card.
 

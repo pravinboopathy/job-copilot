@@ -5,8 +5,21 @@ from bs4 import BeautifulSoup
 from src.linkedin_client import (
     LinkedInClient,
     _extract_job_id,
+    _filter_cards,
     _merge_search_params,
 )
+from src.models import JobPosting
+
+
+def _post(title: str = "x", company: str = "x") -> JobPosting:
+    """Build a minimal JobPosting fixture for filter tests."""
+    return JobPosting(
+        job_id="1",
+        title=title,
+        company=company,
+        description="",
+        url="",
+    )
 
 
 def _card(html: str):
@@ -173,3 +186,77 @@ def test_parse_search_results_empty_html() -> None:
     """No <li> elements at all → empty list, no crash."""
     jobs = LinkedInClient(request_delay=0)._parse_search_results("<html></html>")
     assert jobs == []
+
+
+# --- _filter_cards -----------------------------------------------------------
+
+
+def test_filter_drops_title_match() -> None:
+    """Title containing the blocked word is dropped."""
+    cards = [_post(title="Java Developer"), _post(title="Backend Engineer")]
+    kept = _filter_cards(cards, title_exclude=["java"])
+    assert [c.title for c in kept] == ["Backend Engineer"]
+
+
+def test_filter_word_boundary_keeps_javascript() -> None:
+    """`java` does NOT match `JavaScript` — the core polyglot-safety guarantee."""
+    cards = [
+        _post(title="Java Developer"),
+        _post(title="JavaScript Engineer"),
+        _post(title="Senior Java Architect"),
+    ]
+    kept = _filter_cards(cards, title_exclude=["java"])
+    assert [c.title for c in kept] == ["JavaScript Engineer"]
+
+
+def test_filter_case_insensitive() -> None:
+    """Casing in card data or in the pattern doesn't matter."""
+    cards = [_post(title="JAVA developer"), _post(title="backend ENGINEER")]
+    kept = _filter_cards(cards, title_exclude=["Java"])
+    assert [c.title for c in kept] == ["backend ENGINEER"]
+
+
+def test_filter_drops_company_match() -> None:
+    """Company substring (word-boundary) drops the card."""
+    cards = [
+        _post(company="BeaconFire Inc."),
+        _post(company="Stripe"),
+        _post(company="Jobs via Dice"),
+    ]
+    kept = _filter_cards(cards, company_exclude=["BeaconFire", "Jobs via Dice"])
+    assert [c.company for c in kept] == ["Stripe"]
+
+
+def test_filter_combines_both_blocklists() -> None:
+    """A card is dropped if title OR company matches."""
+    cards = [
+        _post(title="Backend Engineer", company="BeaconFire"),     # company match
+        _post(title="Java Developer", company="Stripe"),            # title match
+        _post(title="Backend Engineer", company="Stripe"),          # keep
+    ]
+    kept = _filter_cards(cards, title_exclude=["java"], company_exclude=["BeaconFire"])
+    assert len(kept) == 1
+    assert kept[0].company == "Stripe" and "Backend" in kept[0].title
+
+
+def test_filter_empty_lists_are_noop() -> None:
+    """No patterns → identity pass-through (and skip the regex compile)."""
+    cards = [_post(title="Java Developer")]
+    assert _filter_cards(cards) == cards
+    assert _filter_cards(cards, title_exclude=[], company_exclude=[]) == cards
+    assert _filter_cards(cards, title_exclude=None, company_exclude=None) == cards
+
+
+def test_filter_ignores_empty_or_whitespace_patterns() -> None:
+    """Blank entries in config don't match every string."""
+    cards = [_post(title="Backend Engineer")]
+    # Without filtering for blanks, "" would match everything.
+    kept = _filter_cards(cards, title_exclude=["", "  "])
+    assert kept == cards
+
+
+def test_filter_handles_regex_special_chars_in_pattern() -> None:
+    """`.NET` is a literal, not a regex — the dot must not match `D` in DOT."""
+    cards = [_post(title=".NET Developer"), _post(title="DNET Architect")]
+    kept = _filter_cards(cards, title_exclude=[".NET"])
+    assert [c.title for c in kept] == ["DNET Architect"]

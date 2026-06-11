@@ -9,6 +9,41 @@ linkedin:
     - keywords: "infrastructure engineer"
       location: "United States"
       time_filter: "r86400"
+      filters:
+        f_E: [2, 3]      # entry + associate
+        f_WT: [2, 3]     # remote + hybrid
+        f_JT: F          # full-time only
+      # LinkedIn's f_E is squishy — Senior/Staff titles often get tagged at
+      # multiple levels. Drop them at the card level (free) before any LLM cost.
+      title_exclude:
+        - senior
+        - staff
+        - principal
+        - lead
+        - architect
+        - manager
+    - keywords: "backend engineer"
+      location: "United States"
+      time_filter: "r86400"
+      filters:
+        f_E: [2, 3]
+        f_WT: [2, 3]
+        f_JT: F
+      title_exclude:
+        - java         # whole-word match; keeps "JavaScript", drops "Java Developer"
+        - .NET
+        - senior
+        - staff
+        - principal
+        - lead
+        - architect
+        - manager
+      company_exclude:
+        - BeaconFire
+        - Virtusa
+        - Jobs via Dice
+        - AgileGrid
+        - Netrolynx
     # Filter-rich example (passed through to LinkedIn's guest API):
     # - keywords: "platform engineer"
     #   location: "United States"
