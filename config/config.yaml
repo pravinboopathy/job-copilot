@@ -5,23 +5,77 @@ gmail:
   max_results: 20
 
 linkedin:
+  # Shared body-shop / staffing-agency blocklist. Referenced via YAML anchors
+  # below so we only edit one place when a new offender shows up. Not read
+  # by the CLI directly (it iterates `search_queries`).
+  body_shops: &body_shops
+    - BeaconFire        # Java consultancy
+    - Virtusa           # Java consultancy
+    - Jobs via Dice     # aggregator
+    - AgileGrid
+    - Netrolynx
+    - ConsultNet        # Windows-shop IT consultancy
+    - TalentAlly        # recruiter
+    - Engage Partners   # staffing
+    - Pelham Berkeley   # recruiter
+    - Kforce            # staffing
+    - Stefanini         # consultancy
+    - FetchJobs         # aggregator
+    - Robert Half       # staffing
+    - Pyramid Consulting
+    - Hunter Bond       # recruiter
+    - Shields Group     # recruiter ("Shields Group Search")
+
+  # Shared seniority blocklist for all queries (you're 2 YOE, targeting entry/mid).
+  seniority: &seniority
+    - senior
+    - sr           # "Sr." or "Sr Engineer"
+    - staff
+    - principal
+    - lead
+    - architect
+    - manager
+    - expert       # "Expert Site Reliability Engineer"
+    - vp           # "Vice President" abbreviated in title
+
   search_queries:
-    - keywords: "infrastructure engineer"
+    # SRE — matches the monitoring/outage-detection/incident-response work
+    - keywords: "site reliability engineer"
       location: "United States"
       time_filter: "r86400"
       filters:
         f_E: [2, 3]      # entry + associate
         f_WT: [2, 3]     # remote + hybrid
         f_JT: F          # full-time only
-      # LinkedIn's f_E is squishy — Senior/Staff titles often get tagged at
-      # multiple levels. Drop them at the card level (free) before any LLM cost.
+      title_exclude: *seniority
+      company_exclude: *body_shops
+
+    # Platform — matches the Kubernetes/Terraform/internal-tooling work
+    - keywords: "platform engineer"
+      location: "United States"
+      time_filter: "r86400"
+      filters:
+        f_E: [2, 3]
+        f_WT: [2, 3]
+        f_JT: F
       title_exclude:
         - senior
+        - sr
         - staff
         - principal
         - lead
         - architect
         - manager
+        - expert
+        - vp
+        # Windows-shop noise that creeps in under "platform"
+        - windows
+        - active directory
+        - entra
+        - intune
+      company_exclude: *body_shops
+
+    # Backend — matches the Go microservices / gRPC / distributed storage work
     - keywords: "backend engineer"
       location: "United States"
       time_filter: "r86400"
@@ -33,17 +87,15 @@ linkedin:
         - java         # whole-word match; keeps "JavaScript", drops "Java Developer"
         - .NET
         - senior
+        - sr
         - staff
         - principal
         - lead
         - architect
         - manager
-      company_exclude:
-        - BeaconFire
-        - Virtusa
-        - Jobs via Dice
-        - AgileGrid
-        - Netrolynx
+        - expert
+        - vp
+      company_exclude: *body_shops
     # Filter-rich example (passed through to LinkedIn's guest API):
     # - keywords: "platform engineer"
     #   location: "United States"
