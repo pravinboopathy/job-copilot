@@ -132,22 +132,27 @@ async def _run_pipeline(
         click.echo(f"  {r.job.title} at {r.job.company}: {r.pre_match:.0f}% → {r.post_match:.0f}%")
 
     if notify and results:
-        from .gmail_client import GmailClient
+        _send_notification(config, results)
 
-        notify_cfg = config.get("notification", {})
-        email_to = notify_cfg.get("email", "")
-        if not email_to:
-            click.echo("Warning: notification.email not set in config.yaml", err=True)
-            return
 
-        gmail_cfg = config.get("gmail", {})
-        gmail = GmailClient(
-            credentials_path=gmail_cfg.get("credentials_path", "config/credentials.json"),
-            token_path=gmail_cfg.get("token_path", "config/token.json"),
-        )
-        gmail.authenticate()
-        gmail.send_results_email(to=email_to, results=results)
-        click.echo(f"Results emailed to {email_to}")
+def _send_notification(config: dict[str, Any], results: list) -> None:
+    """Email tailoring results with PDF attachments."""
+    from .gmail_client import GmailClient
+
+    notify_cfg = config.get("notification", {})
+    email_to = notify_cfg.get("email", "")
+    if not email_to:
+        click.echo("Warning: notification.email not set in config.yaml", err=True)
+        return
+
+    gmail_cfg = config.get("gmail", {})
+    gmail = GmailClient(
+        credentials_path=gmail_cfg.get("credentials_path", "config/credentials.json"),
+        token_path=gmail_cfg.get("token_path", "config/token.json"),
+    )
+    gmail.authenticate()
+    gmail.send_results_email(to=email_to, results=results)
+    click.echo(f"Results emailed to {email_to}")
 
 
 async def _get_jobs_from_email(
@@ -268,47 +273,58 @@ def _get_jobs_from_search(
 
 
 @cli.command()
-@click.argument("job_id")
+@click.argument("job_ids", nargs=-1, required=True)
+@click.option("--notify", is_flag=True, help="Email result(s) after processing")
 @click.pass_context
-def job(ctx: click.Context, job_id: str) -> None:
-    """Process a single LinkedIn job by ID."""
+def job(ctx: click.Context, job_ids: tuple[str, ...], notify: bool) -> None:
+    """Process one or more LinkedIn jobs by ID."""
     config = ctx.obj["config"]
-    asyncio.run(_process_single_job(config, job_id))
+    asyncio.run(_process_jobs(config, list(job_ids), notify))
 
 
-async def _process_single_job(config: dict[str, Any], job_id: str) -> None:
+async def _process_jobs(config: dict[str, Any], job_ids: list[str], notify: bool = False) -> None:
     from .linkedin_client import LinkedInClient
     from .pipeline import process_single_job
     from .state import ProcessedJobsState
 
-    click.echo(f"Fetching job {job_id}...")
     linkedin_cfg = config.get("linkedin", {})
     linkedin = LinkedInClient(
         request_delay=linkedin_cfg.get("request_delay_seconds", 3),
     )
-    job_posting = linkedin.fetch_job(job_id)
-
-    if not job_posting.description:
-        click.echo("Error: empty job description", err=True)
-        return
-
-    click.echo(f"Job: {job_posting.title} at {job_posting.company}")
-
     llm_config = _build_llm_config(config)
     state_path = config.get("state", {}).get("path", "data/processed_jobs.json")
     state = ProcessedJobsState(state_path)
     base_tex_path = config.get("resume", {}).get("base_tex_path", "resume/base_resume.tex")
     base_tex = Path(base_tex_path).read_text(encoding="utf-8")
 
-    result = await process_single_job(
-        job_posting, base_tex, config, llm_config, state
-    )
+    results = []
+    for job_id in job_ids:
+        click.echo(f"\nFetching job {job_id}...")
+        try:
+            job_posting = linkedin.fetch_job(job_id)
+        except Exception as e:
+            click.echo(f"  Failed to fetch: {e}", err=True)
+            continue
 
-    if result:
-        click.echo(f"\nMatch: {result.pre_match:.0f}% → {result.post_match:.0f}%")
-        click.echo(f"Output: {result.tex_path}")
-    else:
-        click.echo("Job was skipped (already processed or below threshold)")
+        if not job_posting.description:
+            click.echo("  Error: empty job description", err=True)
+            continue
+
+        click.echo(f"Job: {job_posting.title} at {job_posting.company}")
+
+        result = await process_single_job(
+            job_posting, base_tex, config, llm_config, state
+        )
+
+        if result:
+            click.echo(f"  Match: {result.pre_match:.0f}% → {result.post_match:.0f}%")
+            click.echo(f"  Output: {result.tex_path}")
+            results.append(result)
+        else:
+            click.echo("  Skipped (already processed or below threshold)")
+
+    if notify and results:
+        _send_notification(config, results)
 
 
 @cli.command()
