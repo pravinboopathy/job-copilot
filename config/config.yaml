@@ -39,8 +39,8 @@ linkedin:
     - vp           # "Vice President" abbreviated in title
 
   search_queries:
-    # SRE — matches the monitoring/outage-detection/incident-response work
-    - keywords: "site reliability engineer"
+    # Software — broad net; the 30% match gate is the final filter
+    - keywords: "software engineer"
       location: "United States"
       time_filter: "r86400"
       filters:
