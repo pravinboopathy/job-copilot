@@ -15,5 +15,9 @@ source .venv/bin/activate 2>/dev/null || conda activate job-tailor 2>/dev/null
 # Run pipeline with email notification
 python -m src.cli run --source email --notify 2>&1 | tee -a data/cron.log
 
+# Discover fresh postings from LinkedIn search (uses linkedin.search_queries
+# in config/config.yaml; tune filters/max_results there to control volume).
+python -m src.cli run --source search --notify 2>&1 | tee -a data/cron.log
+
 # Disconnect VPN
 # surfshark-cli disconnect 2>/dev/null
