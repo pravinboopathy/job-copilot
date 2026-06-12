@@ -4,68 +4,47 @@ A personal pipeline that filters incoming job alerts and tailors a LaTeX resume 
 
 ## How it works
 
-The CLI has two ingress modes. `run --source email` reads incoming LinkedIn alert emails from Gmail and extracts the job IDs from the HTML body. `run --source search` queries the LinkedIn guest API directly using saved search definitions in `config.yaml`. Both modes converge on the same downstream pipeline: keyword extraction, match-score gate, LLM tailoring, AI-phrase scrub, PDF compile, dedup state update, and optional email notification. The Docker cron deployment runs both sources back-to-back every 6 hours.
-
-### Email source (`run --source email`)
+The CLI has two ingress modes. `run --source email` reads incoming LinkedIn alert emails from Gmail and extracts the job IDs from the HTML body. `run --source search` queries the LinkedIn guest API directly using saved search definitions in `config.yaml`. Both modes converge on the same downstream pipeline; the Docker cron deployment runs both sources back-to-back every 6 hours.
 
 ```mermaid
-flowchart TD
-    G[(Gmail account)] -->|OAuth, gmail.readonly| F[Fetch alert emails<br/>from:jobs-noreply@linkedin.com<br/>newer_than:Nd]
-    F --> P[Parse LinkedIn job IDs<br/>from HTML alert body]
-    P --> D{Dedup filter<br/>data/processed_jobs.json}
-    D -->|already processed| X1([skip])
-    D -->|new| L[LinkedIn guest API<br/>fetch_job&#40;id&#41;]
-    L -->|empty JD| X2([skip])
-    L -->|JobPosting| T[Shared tailor pipeline]
+flowchart LR
+    G[(Gmail<br/>account)] -->|OAuth| GF[Fetch alert<br/>emails]
+    GF --> GP[Parse LinkedIn<br/>job IDs]
+    C[(config.yaml<br/>search_queries)] -->|per query| LS[LinkedIn<br/>search API]
+    LS --> CF[Card filter<br/>title + company<br/>blocklists]
+    GP --> D{Dedup}
+    CF --> D
+    D -->|done| X1([skip])
+    D -->|new| LF[Fetch full JD<br/>LinkedIn guest API]
+    LF -->|empty| X2([skip])
+    LF --> SI[Sanitize JD]
+    SI --> EK[Extract<br/>keywords<br/>LLM]
+    EK --> TH{Pre-match<br/>≥ threshold?}
+    TH -->|no| REC[Record + skip]
+    TH -->|yes| TR[Tailor resume<br/>LLM +<br/>truthfulness rules]
+    TR --> AP[Scrub AI<br/>phrases]
+    AP --> PDF[Compile PDF<br/>1-page enforced]
+    PDF --> W[Write files<br/>mark_processed]
+    W --> N{--notify?}
+    N -->|no| Y([done])
+    N -->|yes| EM[Email summary<br/>+ PDFs]
 
-    classDef store fill:#eef,stroke:#447
-    class G,D store
-```
+    classDef store fill:#1e40af,stroke:#93c5fd,color:#fff,stroke-width:2px
+    classDef llm fill:#7e22ce,stroke:#d8b4fe,color:#fff,stroke-width:2px
+    classDef gate fill:#b45309,stroke:#fcd34d,color:#fff,stroke-width:2px
+    classDef term fill:#4b5563,stroke:#d1d5db,color:#fff,stroke-width:2px
+    classDef action fill:#0f766e,stroke:#5eead4,color:#fff,stroke-width:2px
 
-### Search source (`run --source search`)
-
-```mermaid
-flowchart TD
-    C[(config.yaml<br/>linkedin.search_queries)] -->|per query| S[LinkedIn search<br/>guest API + filters<br/>f_E, f_WT, f_JT, f_TPR]
-    S --> CF[Card-level filter<br/>title + company blocklists<br/>word-boundary regex]
-    CF --> D{Dedup filter<br/>data/processed_jobs.json}
-    D -->|already processed| X1([skip])
-    D -->|new| L[LinkedIn guest API<br/>fetch_job&#40;id&#41;]
-    L -->|empty JD| X2([skip])
-    L -->|JobPosting| T[Shared tailor pipeline]
-
-    classDef store fill:#eef,stroke:#447
-    class C,D store
+    class G,C store
+    class EK,TR llm
+    class D,TH,N gate
+    class X1,X2,REC,Y term
+    class GF,GP,LS,CF,LF,SI,AP,PDF,W,EM action
 ```
 
 The card-level filter is a deliberate cost-cutting step: title and company blocklists run on each search-result card *before* any full-JD fetch or LLM call. Surviving cards are then deduped against `processed_jobs.json` so reruns never re-fetch the same posting.
 
-### Shared tailor pipeline (per job)
-
-```mermaid
-flowchart TD
-    J[JobPosting] --> SI[Sanitize JD<br/>prompt-injection filter]
-    SI --> EK[Extract keywords<br/>LLM JSON mode]
-    EK --> PM[Pre-tailor match score<br/>deterministic, no LLM]
-    PM --> TH{≥ min_match_threshold?}
-    TH -->|no| REC[Record + skip<br/>processed_jobs.json]
-    TH -->|yes| TR[Tailor resume<br/>LLM + CRITICAL_TRUTHFULNESS_RULES]
-    TR --> AP[Scrub AI phrases<br/>AI_PHRASE_BLACKLIST]
-    AP --> CB[Capitalize bullets<br/>deterministic regex]
-    CB --> PoM[Post-tailor match score]
-    PoM --> PDF[Compile PDF — pdflatex<br/>retry at 10pt if &gt; 1 page]
-    PDF --> W[Write .tex / .pdf / _changes.md<br/>mark_processed + metrics]
-    W --> N{--notify?}
-    N -->|yes| EM[Send email summary<br/>HTML table + PDF attachments]
-    N -->|no| Y([done])
-
-    classDef llm fill:#fef,stroke:#747
-    classDef gate fill:#ffd,stroke:#aa3
-    class EK,TR llm
-    class TH,N gate
-```
-
-Output for each tailored job lands in `data/output/` as three files: the tailored `.tex`, the compiled `.pdf`, and a `_changes.md` report showing pre/post match %, what changed, matched keywords, missing-but-injectable keywords, gaps that cannot be added truthfully, and any AI phrases that were scrubbed. Dedup state in `data/processed_jobs.json` prevents re-processing on subsequent runs.
+Output for each tailored job lands in `data/output/` as three files: the tailored `.tex`, the compiled `.pdf`, and a `_changes.md` report showing pre/post match %, what changed, matched keywords, missing-but-injectable keywords, gaps that cannot be added truthfully, and any AI phrases that were scrubbed.
 
 ## Engineering highlights
 
