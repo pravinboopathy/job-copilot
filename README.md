@@ -2,38 +2,70 @@
 
 A personal pipeline that filters incoming job alerts and tailors a LaTeX resume per role, with LLM truthfulness guardrails. Built for myself, open-sourced as a portfolio reference.
 
-## What it does
+## How it works
 
-```
-Gmail alerts / LinkedIn search
-        │
-        ▼
-Card-level filter (title + company blocklists)
-        │
-        ▼
-Fetch full job description (LinkedIn guest API)
-        │
-        ▼
-Keyword extraction (LLM, JSON mode)
-        │
-        ▼
-Match-score gate (skip jobs below min_match_threshold)
-        │
-        ▼
-Tailor resume against the JD
-  (constrained by CRITICAL_TRUTHFULNESS_RULES — no fabrication)
-        │
-        ▼
-Scrub common AI-generated phrasing
-        │
-        ▼
-Compile to PDF (pdflatex)
-        │
-        ▼
-Update dedup state + email summary with PDFs attached
+The CLI has two ingress modes. `run --source email` reads incoming LinkedIn alert emails from Gmail and extracts the job IDs from the HTML body. `run --source search` queries the LinkedIn guest API directly using saved search definitions in `config.yaml`. Both modes converge on the same downstream pipeline: keyword extraction, match-score gate, LLM tailoring, AI-phrase scrub, PDF compile, dedup state update, and optional email notification. The Docker cron deployment runs both sources back-to-back every 6 hours.
+
+### Email source (`run --source email`)
+
+```mermaid
+flowchart TD
+    G[(Gmail account)] -->|OAuth, gmail.readonly| F[Fetch alert emails<br/>from:jobs-noreply@linkedin.com<br/>newer_than:Nd]
+    F --> P[Parse LinkedIn job IDs<br/>from HTML alert body]
+    P --> D{Dedup filter<br/>data/processed_jobs.json}
+    D -->|already processed| X1([skip])
+    D -->|new| L[LinkedIn guest API<br/>fetch_job&#40;id&#41;]
+    L -->|empty JD| X2([skip])
+    L -->|JobPosting| T[Shared tailor pipeline]
+
+    classDef store fill:#eef,stroke:#447
+    class G,D store
 ```
 
-Output for each tailored job lands in `data/output/`: the tailored `.tex`, the compiled `.pdf`, and a `_changes.md` report showing the pre/post match %, what changed, and the keyword gap analysis. The pipeline runs on cron — locally or in Docker — and dedup state prevents re-processing.
+### Search source (`run --source search`)
+
+```mermaid
+flowchart TD
+    C[(config.yaml<br/>linkedin.search_queries)] -->|per query| S[LinkedIn search<br/>guest API + filters<br/>f_E, f_WT, f_JT, f_TPR]
+    S --> CF[Card-level filter<br/>title + company blocklists<br/>word-boundary regex]
+    CF --> D{Dedup filter<br/>data/processed_jobs.json}
+    D -->|already processed| X1([skip])
+    D -->|new| L[LinkedIn guest API<br/>fetch_job&#40;id&#41;]
+    L -->|empty JD| X2([skip])
+    L -->|JobPosting| T[Shared tailor pipeline]
+
+    classDef store fill:#eef,stroke:#447
+    class C,D store
+```
+
+The card-level filter is a deliberate cost-cutting step: title and company blocklists run on each search-result card *before* any full-JD fetch or LLM call. Surviving cards are then deduped against `processed_jobs.json` so reruns never re-fetch the same posting.
+
+### Shared tailor pipeline (per job)
+
+```mermaid
+flowchart TD
+    J[JobPosting] --> SI[Sanitize JD<br/>prompt-injection filter]
+    SI --> EK[Extract keywords<br/>LLM JSON mode]
+    EK --> PM[Pre-tailor match score<br/>deterministic, no LLM]
+    PM --> TH{≥ min_match_threshold?}
+    TH -->|no| REC[Record + skip<br/>processed_jobs.json]
+    TH -->|yes| TR[Tailor resume<br/>LLM + CRITICAL_TRUTHFULNESS_RULES]
+    TR --> AP[Scrub AI phrases<br/>AI_PHRASE_BLACKLIST]
+    AP --> CB[Capitalize bullets<br/>deterministic regex]
+    CB --> PoM[Post-tailor match score]
+    PoM --> PDF[Compile PDF — pdflatex<br/>retry at 10pt if &gt; 1 page]
+    PDF --> W[Write .tex / .pdf / _changes.md<br/>mark_processed + metrics]
+    W --> N{--notify?}
+    N -->|yes| EM[Send email summary<br/>HTML table + PDF attachments]
+    N -->|no| Y([done])
+
+    classDef llm fill:#fef,stroke:#747
+    classDef gate fill:#ffd,stroke:#aa3
+    class EK,TR llm
+    class TH,N gate
+```
+
+Output for each tailored job lands in `data/output/` as three files: the tailored `.tex`, the compiled `.pdf`, and a `_changes.md` report showing pre/post match %, what changed, matched keywords, missing-but-injectable keywords, gaps that cannot be added truthfully, and any AI phrases that were scrubbed. Dedup state in `data/processed_jobs.json` prevents re-processing on subsequent runs.
 
 ## Engineering highlights
 
