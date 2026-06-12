@@ -154,7 +154,7 @@ uv pip install -r requirements.txt
 cp .env.example .env                                # add API key
 cp config/config.yaml.example config/config.yaml    # set queries, model, email
 cp config/credentials.json.example config/credentials.json   # replace with real Gmail OAuth creds
-# Put your LaTeX resume at resume/base_resume.tex
+cp resume/base_resume.tex.example resume/base_resume.tex     # then replace with your real LaTeX resume
 python -m src.cli test-gmail
 python -m src.cli run --source search --dry-run
 ```

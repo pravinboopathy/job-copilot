@@ -13,6 +13,7 @@ data/
 config/credentials.json
 config/token.json
 config/config.yaml
+resume/base_resume.tex
 wg0.conf
 
 # Editor/OS junk
