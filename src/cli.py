@@ -1,4 +1,4 @@
-"""Click CLI entrypoint for Job Tailor."""
+"""Click CLI entrypoint for job-copilot."""
 
 import asyncio
 import logging
@@ -15,7 +15,7 @@ from ._vendor.llm import LLMConfig
 
 from .gmail_client import DEFAULT_GMAIL_QUERY
 
-# Load .env from the job-tailor directory
+# Load .env from the repo root
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
@@ -67,7 +67,7 @@ def _build_llm_config(config: dict[str, Any]) -> LLMConfig:
 )
 @click.pass_context
 def cli(ctx: click.Context, config: str, verbose: bool) -> None:
-    """Job-Tailor: Monitor job alerts and tailor your LaTeX resume."""
+    """job-copilot: Monitor job alerts and tailor your LaTeX resume."""
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(levelname)s %(name)s: %(message)s",

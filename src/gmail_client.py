@@ -147,7 +147,7 @@ class GmailClient:
             self.authenticate()
 
         today = date.today().isoformat()
-        subject = f"Job Tailor: {len(results)} resumes tailored — {today}"
+        subject = f"job-copilot: {len(results)} resumes tailored — {today}"
 
         # Build HTML body
         rows = ""
@@ -164,7 +164,7 @@ class GmailClient:
             )
 
         html_body = f"""<html><body>
-<h2>Job Tailor Results — {today}</h2>
+<h2>job-copilot results — {today}</h2>
 <table style='border-collapse:collapse;width:100%'>
 <tr style='background:#f2f2f2'>
 <th style='padding:8px;border:1px solid #ddd;text-align:left'>Job</th>
