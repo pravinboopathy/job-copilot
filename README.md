@@ -6,6 +6,8 @@ A personal pipeline that filters incoming job alerts and tailors a LaTeX resume 
 
 The CLI has two ingress modes. `run --source email` reads incoming LinkedIn alert emails from Gmail and extracts the job IDs from the HTML body. `run --source search` queries the LinkedIn guest API directly using saved search definitions in `config.yaml`. Both modes converge on the same downstream pipeline; the Docker cron deployment runs both sources back-to-back every 6 hours.
 
+### Ingestion
+
 ```mermaid
 flowchart LR
     G[(Gmail<br/>account)] -->|OAuth| GF[Fetch alert<br/>emails]
@@ -17,7 +19,28 @@ flowchart LR
     D -->|done| X1([skip])
     D -->|new| LF[Fetch full JD<br/>LinkedIn guest API]
     LF -->|empty| X2([skip])
-    LF --> SI[Sanitize JD]
+    LF --> JP([JobPosting])
+
+    classDef store fill:#1e40af,stroke:#93c5fd,color:#fff,stroke-width:2px
+    classDef gate fill:#b45309,stroke:#fcd34d,color:#fff,stroke-width:2px
+    classDef term fill:#4b5563,stroke:#d1d5db,color:#fff,stroke-width:2px
+    classDef action fill:#0f766e,stroke:#5eead4,color:#fff,stroke-width:2px
+    classDef handoff fill:#15803d,stroke:#86efac,color:#fff,stroke-width:2px
+
+    class G,C store
+    class D gate
+    class X1,X2 term
+    class GF,GP,LS,CF,LF action
+    class JP handoff
+```
+
+The card-level filter is a deliberate cost-cutting step: title and company blocklists run on each search-result card *before* any full-JD fetch or LLM call. Surviving cards are then deduped against `processed_jobs.json` so reruns never re-fetch the same posting.
+
+### Per-job tailoring
+
+```mermaid
+flowchart LR
+    JP([JobPosting]) --> SI[Sanitize JD]
     SI --> EK[Extract<br/>keywords<br/>LLM]
     EK --> TH{Pre-match<br/>≥ threshold?}
     TH -->|no| REC[Record + skip]
@@ -29,20 +52,18 @@ flowchart LR
     N -->|no| Y([done])
     N -->|yes| EM[Email summary<br/>+ PDFs]
 
-    classDef store fill:#1e40af,stroke:#93c5fd,color:#fff,stroke-width:2px
     classDef llm fill:#7e22ce,stroke:#d8b4fe,color:#fff,stroke-width:2px
     classDef gate fill:#b45309,stroke:#fcd34d,color:#fff,stroke-width:2px
     classDef term fill:#4b5563,stroke:#d1d5db,color:#fff,stroke-width:2px
     classDef action fill:#0f766e,stroke:#5eead4,color:#fff,stroke-width:2px
+    classDef handoff fill:#15803d,stroke:#86efac,color:#fff,stroke-width:2px
 
-    class G,C store
     class EK,TR llm
-    class D,TH,N gate
-    class X1,X2,REC,Y term
-    class GF,GP,LS,CF,LF,SI,AP,PDF,W,EM action
+    class TH,N gate
+    class REC,Y term
+    class SI,AP,PDF,W,EM action
+    class JP handoff
 ```
-
-The card-level filter is a deliberate cost-cutting step: title and company blocklists run on each search-result card *before* any full-JD fetch or LLM call. Surviving cards are then deduped against `processed_jobs.json` so reruns never re-fetch the same posting.
 
 Output for each tailored job lands in `data/output/` as three files: the tailored `.tex`, the compiled `.pdf`, and a `_changes.md` report showing pre/post match %, what changed, matched keywords, missing-but-injectable keywords, gaps that cannot be added truthfully, and any AI phrases that were scrubbed.
 
