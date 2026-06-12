@@ -1,0 +1,91 @@
+\documentclass[11pt]{article}
+\usepackage[letterpaper,
+top=0.5in,
+bottom=0.5in,
+left=0.5in,
+right=0.5in]{geometry}
+
+\usepackage{charter}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+\raggedright
+\pagestyle{empty}
+
+\input{glyphtounicode}
+\pdfgentounicode=1
+
+\titleformat{\section}{\bfseries\large}{}{0pt}{}[\vspace{1pt}\titlerule\vspace{-6.5pt}]
+
+\renewcommand\labelitemi{$\vcenter{\hbox{\small$\bullet$}}$}
+\setlist[itemize]{itemsep=-2pt, leftmargin=12pt, topsep=7pt}
+
+% =====================================================================
+% Example base resume. Replace every field below with your own content
+% before running the pipeline. Anything not present here will not be
+% added by the LLM (truthfulness rules forbid fabrication).
+% =====================================================================
+
+\begin{document}
+
+% name
+\centerline{\Huge Jane Doe}
+
+\vspace{5pt}
+
+% contact info
+\centerline{\href{mailto:jane.doe@example.com}{jane.doe@example.com} \,|\, San Francisco, CA \,|\, \href{https://example.com}{example.com/jane-doe}}
+
+\vspace{-10pt}
+
+% skills
+\section*{Skills}
+\textbf{Languages:} Python, Go, TypeScript, Rust, SQL \\
+\textbf{Cloud \& DevOps:} Kubernetes, Terraform, AWS, Docker, GitHub Actions \\
+\textbf{Distributed Systems:} REST APIs, gRPC, Kafka, Postgres, Redis
+
+\vspace{-6.5pt}
+
+% experience
+\section*{Experience}
+
+\textbf{Senior Software Engineer,} Example Tech Inc. -- Remote \hfill Aug 2023 -- Present \\
+\vspace{-9pt}
+\begin{itemize}
+  \item Designed and shipped a Go-based event ingestion service processing 50k events/sec across regional Kubernetes clusters, replacing a legacy Python service and reducing p99 latency from 800ms to 120ms.
+  \item Led migration of the deployment pipeline from Jenkins to GitHub Actions, including reproducible Terraform-driven preview environments per pull request. Reduced average deploy time from 45 minutes to under 6.
+  \item Built a Postgres-backed feature flag service with row-level audit logs and a TypeScript SDK, adopted by 12 teams across the platform; eliminated three production incidents tied to ad-hoc config changes.
+  \item Drafted and championed the company's internal RFC process for new services, including templated review checklists and an automated lint that surfaces missing observability instrumentation at PR time.
+\end{itemize}
+
+\textbf{Software Engineer,} Sample Cloud Co. -- San Francisco, CA \hfill Jun 2021 -- Aug 2023 \\
+\vspace{-9pt}
+\begin{itemize}
+  \item Implemented multi-region replication for the company's primary metadata store using Raft consensus in Go, including a tooling layer for safe failover and automated split-brain detection.
+  \item Owned the API gateway: gRPC + REST translation, rate limiting, authentication; sustained a 4x traffic growth with no SLA breaches over 18 months.
+  \item Mentored two junior engineers through their first on-call rotations, including writing runbooks and shadowing them through several production incidents.
+\end{itemize}
+
+\textbf{Software Engineering Intern,} Placeholder Labs -- Boston, MA \hfill May 2020 -- Aug 2020 \\
+\vspace{-9pt}
+\begin{itemize}
+  \item Prototyped a Python data-quality CLI used by the analytics team to validate weekly ETL outputs against a schema registry; productionized by full-time engineers after the internship ended.
+\end{itemize}
+
+% projects
+\section*{Projects}
+
+\textbf{Open Source Maintainer,} Example OSS Project \hfill Mar 2022 -- Present \\
+\vspace{-9pt}
+\begin{itemize}
+  \item Maintain a popular Go library for structured logging (~3.2k GitHub stars). Triaged 200+ issues, reviewed 80+ external PRs, drove a 2.0 release with a stable plugin API.
+  \item Wrote and presented a conference talk on backwards-compatible API evolution for Go libraries; recorded talk has 18k views.
+\end{itemize}
+
+% education
+\section*{Education}
+\textbf{State University} -- BS Computer Science, GPA: 3.8 \hfill May 2021
+
+\end{document}
