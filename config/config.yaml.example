@@ -64,7 +64,8 @@ tailoring:
 
 output:
   directory: "data/output"
-  filename_pattern: "{company}_{job_title}_{date}"
+  candidate_name: "Jane Doe"
+  filename_pattern: "{company}_{name}"
 
 state:
   path: "data/processed_jobs.json"

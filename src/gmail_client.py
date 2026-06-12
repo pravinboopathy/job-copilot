@@ -191,7 +191,7 @@ class GmailClient:
                 if pdf_path.exists():
                     with open(pdf_path, "rb") as f:
                         attachment = MIMEApplication(f.read(), _subtype="pdf")
-                    filename = f"{r.job.company}_{r.job.title}.pdf".replace(" ", "_")
+                    filename = pdf_path.name
                     attachment.add_header(
                         "Content-Disposition", "attachment", filename=filename
                     )

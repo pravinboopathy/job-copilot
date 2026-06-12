@@ -33,9 +33,11 @@ def _sanitize_filename(text: str) -> str:
 
 def _build_output_prefix(job: JobPosting, config: dict[str, Any]) -> str:
     """Build the output filename prefix from config pattern."""
-    pattern = config.get("output", {}).get("filename_pattern", "{company}_{job_title}_{date}")
+    output = config.get("output", {})
+    pattern = output.get("filename_pattern", "{company}_{name}")
     return pattern.format(
         company=_sanitize_filename(job.company),
+        name=_sanitize_filename(output.get("candidate_name", "")),
         job_title=_sanitize_filename(job.title),
         date=date.today().isoformat(),
     )
