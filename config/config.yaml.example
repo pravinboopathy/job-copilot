@@ -1,0 +1,73 @@
+# Example configuration. Copy to config/config.yaml and edit for your setup.
+# config/config.yaml is gitignored so your personal queries / blocklists /
+# notification email stay private.
+
+gmail:
+  credentials_path: "config/credentials.json"
+  token_path: "config/token.json"
+  # Gmail search query. The CLI also accepts --days N to override newer_than.
+  query: "{from:jobs-noreply@linkedin.com from:jobalerts-noreply@linkedin.com from:jobs-listings@linkedin.com} newer_than:1d"
+  max_results: 20
+
+linkedin:
+  # Per-query LinkedIn search definitions. Each entry is one search the CLI runs
+  # under `run --source search`. YAML anchors (&name / *name) let you share
+  # blocklists across queries.
+  body_shops: &body_shops
+    # Add companies you want to filter out at the card level (substring match
+    # against the result's company field). Example: aggregators, staffing
+    # agencies, consultancies that don't fit your target role.
+    []
+
+  seniority: &seniority
+    # Title-level blocklist applied before any LinkedIn JD fetch / LLM call.
+    # Useful for filtering out levels above what you're targeting.
+    - senior
+    - sr
+    - staff
+    - principal
+    - lead
+    - architect
+    - manager
+
+  search_queries:
+    - keywords: "your target role"
+      location: "United States"
+      time_filter: "r86400"          # r86400=24h, r604800=7d, r2592000=30d
+      filters:
+        f_E: [2, 3]                  # experience: 1=internship 2=entry 3=associate 4=mid-senior
+        f_WT: [2, 3]                 # workplace: 1=on-site 2=remote 3=hybrid
+        f_JT: F                      # job type: F=FT P=PT C=contract T=temp
+        # f_SB2, f_C, f_I, f_AL, geoId, distance, sortBy also accepted
+      title_exclude: *seniority
+      company_exclude: *body_shops
+
+  # Delay between LinkedIn requests to respect their rate limits.
+  request_delay_seconds: 3
+
+llm:
+  provider: "anthropic"              # anthropic | openai | gemini | openrouter | deepseek | ollama
+  model: "claude-sonnet-4-20250514"
+  max_tokens: 8192
+
+resume:
+  base_tex_path: "resume/base_resume.tex"
+
+tailoring:
+  strategy: "full"                   # full | nudge | keywords
+  enable_keyword_extraction: true
+  enable_ai_phrase_removal: true
+  # Minimum keyword-match % required to run the tailoring step. Jobs below
+  # this threshold are recorded but not tailored — keeps the dedup state
+  # accurate without burning LLM calls on poor fits.
+  min_match_threshold: 20
+
+output:
+  directory: "data/output"
+  filename_pattern: "{company}_{job_title}_{date}"
+
+state:
+  path: "data/processed_jobs.json"
+
+notification:
+  email: "your-email@example.com"

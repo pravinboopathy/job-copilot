@@ -1,52 +1,44 @@
-# Job Tailor — Deployment Guide
+# Deployment Guide
 
 ## Prerequisites
 
 - Python 3.13+
-- [uv](https://docs.astral.sh/uv/) (package manager)
-- [Surfshark CLI](https://surfshark.com/download/linux) (VPN for LinkedIn scraping)
-- pdflatex (`brew install basictex` on macOS, `apt install texlive` on Linux)
-- Anthropic API key
+- [uv](https://docs.astral.sh/uv/) or `pip` (uv is faster)
+- `pdflatex` (`brew install basictex` on macOS, `apt install texlive-latex-base texlive-latex-extra texlive-fonts-recommended` on Debian/Ubuntu)
+- An API key for one supported LLM provider (Anthropic, OpenAI, Gemini, OpenRouter, DeepSeek, or a local Ollama server)
 
-## Environment Setup
+## Local Setup
 
 ```bash
-cd tools/job-tailor
+git clone <repo-url> job-copilot
+cd job-copilot
+
 uv venv --python 3.13
 source .venv/bin/activate
-uv pip install -e ../../apps/backend
 uv pip install -r requirements.txt
-```
 
-## Configuration
-
-### `.env`
-
-```bash
 cp .env.example .env
-# Edit .env with your API key
+cp config/config.yaml.example config/config.yaml
+cp config/credentials.json.example config/credentials.json
 ```
 
-```env
-ANTHROPIC_API_KEY=sk-ant-your-key-here
-```
+Then:
 
-### `config.yaml`
+1. Edit `.env` and set the API key matching `llm.provider` in `config.yaml`.
+2. Edit `config/config.yaml` — set your search queries, LLM model, notification email.
+3. Replace `config/credentials.json` with real Gmail OAuth credentials (see "Gmail OAuth" below).
+4. Place your LaTeX resume at `resume/base_resume.tex`.
 
-Edit `config/config.yaml` to adjust:
-- `linkedin.search_queries` — keywords, location, time filter
-- `llm.model` — which Claude model to use
-- `tailoring.min_match_threshold` — minimum keyword match % to tailor (default 15)
-- `tailoring.strategy` — "nudge", "keywords", or "full"
+## Gmail OAuth
 
-### Gmail OAuth
+The Gmail integration reads incoming LinkedIn alert emails and (optionally) sends result notifications. You need OAuth credentials for a Google Cloud project you own:
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a project → enable **Gmail API**
-3. Go to **APIs & Services → Credentials → Create Credentials → OAuth client ID**
+1. [Google Cloud Console](https://console.cloud.google.com/) → create a project
+2. Enable the **Gmail API**
+3. **APIs & Services → Credentials → Create Credentials → OAuth client ID**
 4. Application type: **Desktop app**
-5. Download JSON → save as `config/credentials.json`
-6. Go to **OAuth consent screen → Test users** → add your Gmail address
+5. Download the JSON and save it as `config/credentials.json`
+6. **OAuth consent screen → Test users** → add your Gmail address
 
 First run opens a browser for consent:
 
@@ -54,192 +46,75 @@ First run opens a browser for consent:
 python -m src.cli test-gmail
 ```
 
-This saves `config/token.json` for future non-interactive use.
-
-### Resume
-
-Place your base LaTeX resume at:
-
-```
-resume/base_resume.tex
-```
-
-## Surfshark VPN
-
-Connect before scraping LinkedIn to avoid rate limiting:
-
-```bash
-surfshark-cli connect
-# Verify: curl ifconfig.me
-```
-
-All requests from the CLI are automatically routed through the VPN tunnel.
+This saves `config/token.json` for future non-interactive runs.
 
 ## Running
 
 ```bash
-# Test Gmail connection
+# Test connections
 python -m src.cli test-gmail
-
-# Test LinkedIn fetch
 python -m src.cli test-linkedin <job_id>
 
 # Dry run — list jobs without tailoring
 python -m src.cli run --source email --dry-run
 
-# Process jobs from Gmail alerts
+# Process jobs from incoming Gmail alerts
 python -m src.cli run --source email --limit 5
 
-# Process a single job by ID
+# Process a single job by LinkedIn ID
 python -m src.cli job <job_id>
 
-# Search LinkedIn directly
+# Search LinkedIn directly (uses config.yaml search_queries)
 python -m src.cli run --source search --limit 5
 
-# Check processing stats
+# Show processing stats
 python -m src.cli status
 ```
 
-Output goes to `data/output/`:
+Output for each tailored job goes to `data/output/`:
+
 - `{Company}_{Title}_{Date}.tex` — tailored LaTeX
 - `{Company}_{Title}_{Date}.pdf` — compiled PDF
-- `{Company}_{Title}_{Date}_changes.md` — analysis, changes, keyword report
+- `{Company}_{Title}_{Date}_changes.md` — analysis: keyword match %, what changed, gap report
 
-## Best Practices
+The CLI tracks processed jobs in `data/processed_jobs.json` and skips already-processed IDs on rerun. Review the `_changes.md` report and the PDF before deciding whether to apply.
 
-- **VPN first** — always `surfshark-cli connect` before running with LinkedIn sources
-- **Rate limiting** — the CLI enforces a 3s delay between LinkedIn requests (configurable in `config.yaml`)
-- **Check output** — review `_changes.md` reports to verify tailoring quality
-- **Dedup** — the CLI tracks processed jobs in `data/processed_jobs.json`; rerunning skips already-processed jobs
+## Automated runs (cron)
 
----
-
-## Cron Job + Email Notifications
-
-Automate the pipeline to run every 6 hours and email results with PDFs and apply links.
-
-### 1. Enable Gmail Send Scope
-
-The `gmail.send` scope is already configured in the code. Delete your existing token to re-auth with the new scope:
-
-```bash
-rm config/token.json
-python -m src.cli test-gmail
-```
-
-This opens a browser — grant both read and send permissions.
-
-### 2. Configure Notification Email
-
-Already set in `config/config.yaml`:
-
-```yaml
-notification:
-  email: "boopathypravin@gmail.com"
-```
-
-### 3. Test Email Notification
-
-```bash
-python -m src.cli run --source email --limit 1 --notify
-```
-
-You should receive an email with:
-- HTML table: Job Title, Company, Location, Match %, Apply link
-- PDF attachments for each tailored resume
-
-### 4. Install Cron Job
+For local-venv deployment, install the included wrapper:
 
 ```bash
 crontab -e
+# Append (runs every 6 hours):
+0 */6 * * * /absolute/path/to/job-copilot/scripts/cron_run.sh
 ```
 
-Add this line (runs every 6 hours):
+`scripts/cron_run.sh` activates the venv, runs the pipeline with `--notify`, and logs to `data/cron.log`. The notification email is sent from your Gmail account (the OAuth scope includes `gmail.send`) to the address in `config.notification.email`.
 
-```
-0 */6 * * * /Users/pravinboopathy/projects/resume_tailor/tools/job-tailor/scripts/cron_run.sh
-```
+## Docker Deployment
 
-The cron wrapper script (`scripts/cron_run.sh`) activates the environment, optionally connects VPN, runs the pipeline with `--notify`, and logs output to `data/cron.log`.
-
-### 5. Verify
+The included `Dockerfile` and `docker-compose.yml` build a container with `texlive` and the CLI. Bind-mounts pass `config/`, `resume/`, and `data/` into the container so state and credentials live on the host.
 
 ```bash
-# Check cron is installed
-crontab -l
-
-# Check logs after a run
-tail -50 data/cron.log
+docker compose build
+docker compose run --rm job-copilot status
+docker compose run --rm job-copilot run --source email --notify
 ```
 
----
-
-## Future: Docker Deployment
-
-> Not yet implemented. Documented here for future reference.
-
-### Dockerfile
-
-```dockerfile
-FROM python:3.13-slim
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    texlive-latex-base texlive-fonts-recommended \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-COPY apps/backend /app/apps/backend
-COPY tools/job-tailor /app/tools/job-tailor
-
-RUN pip install -e /app/apps/backend \
-    && pip install -r /app/tools/job-tailor/requirements.txt
-
-WORKDIR /app/tools/job-tailor
-ENTRYPOINT ["python", "-m", "src.cli"]
-```
-
-### Build & Run
+For scheduled docker runs, `scripts/docker_cron.sh` is a host-side wrapper:
 
 ```bash
-# Build from repo root
-docker build -t job-tailor -f tools/job-tailor/Dockerfile .
-
-# Run with mounted config and resume
-docker run --env-file tools/job-tailor/.env \
-  -v $(pwd)/tools/job-tailor/config:/app/tools/job-tailor/config \
-  -v $(pwd)/tools/job-tailor/resume:/app/tools/job-tailor/resume \
-  -v $(pwd)/tools/job-tailor/data:/app/tools/job-tailor/data \
-  job-tailor run --source email --limit 5
+crontab -e
+0 */6 * * * /absolute/path/to/job-copilot/scripts/docker_cron.sh
 ```
 
-Gmail `token.json` must be generated locally first (requires browser for OAuth), then mounted into the container via the config volume.
+## Configuration reference
 
-For VPN in Docker, use `--network host` with Surfshark CLI running on the host, or configure a SOCKS5 proxy.
+See `config/config.yaml.example` for the full set of options with inline comments. Key knobs:
 
----
-
-## Future: Automated Pipeline (Optional)
-
-> Further automation beyond the current cron + email setup.
-
-### Integration with Resume Matcher Web App
-
-The tailored `.tex` files and keyword reports could be imported into the Resume Matcher web app:
-- Auto-create resume entries from tailored output
-- Display keyword match scores on the dashboard
-- Track application status per job
-
-### Full Automation Vision
-
-```
-LinkedIn alert email
-  → Gmail API fetch
-  → Parse job IDs
-  → Fetch JDs (via VPN)
-  → Extract keywords (LLM)
-  → Tailor resume (LLM)
-  → Clean AI phrases
-  → Compile PDF
-  → [Optional] Auto-submit application
-  → [Optional] Track in Resume Matcher dashboard
-```
+- `linkedin.search_queries` — list of LinkedIn search definitions (keywords, location, time filter, experience/workplace/job-type filters, title and company blocklists)
+- `linkedin.request_delay_seconds` — delay between LinkedIn requests (default 3s) to respect rate limits
+- `llm.provider` / `llm.model` — which LLM backend to call
+- `tailoring.strategy` — `full` (rewrite emphasis), `nudge` (lighter touch), or `keywords` (keyword injection only)
+- `tailoring.min_match_threshold` — minimum keyword-match % required before running the tailoring step. Jobs below this are recorded in dedup state but not tailored
+- `tailoring.enable_ai_phrase_removal` — scrub common AI-generated phrasing (see `src/_vendor/prompts/refinement.py` for the blacklist)
