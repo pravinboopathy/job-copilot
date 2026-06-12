@@ -1,11 +1,17 @@
-"""LLM-based resume tailoring using Resume Matcher's LiteLLM wrapper."""
+"""LLM-driven resume tailoring.
+
+Builds a system prompt (truthfulness rules + output format spec) and a user
+prompt (sanitized JD + extracted keywords + content budget + base resume),
+calls the LLM via ``_internal.llm.complete``, then parses the delimiter-
+separated response into the three sections the pipeline writes to disk.
+"""
 
 import logging
 import re
 from typing import Any
 
-from ._vendor.llm import LLMConfig, complete
-from ._vendor.prompts.templates import CRITICAL_TRUTHFULNESS_RULES
+from ._internal.llm import LLMConfig, complete
+from ._internal.prompts.templates import CRITICAL_TRUTHFULNESS_RULES
 
 from .adapters import sanitize_input
 from .models import JobPosting, TailorOutput

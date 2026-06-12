@@ -11,7 +11,7 @@ import click
 import yaml
 from dotenv import load_dotenv
 
-from ._vendor.llm import LLMConfig
+from ._internal.llm import LLMConfig
 
 from .gmail_client import DEFAULT_GMAIL_QUERY
 

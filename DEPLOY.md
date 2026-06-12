@@ -117,4 +117,4 @@ See `config/config.yaml.example` for the full set of options with inline comment
 - `llm.provider` / `llm.model` — which LLM backend to call
 - `tailoring.strategy` — `full` (rewrite emphasis), `nudge` (lighter touch), or `keywords` (keyword injection only)
 - `tailoring.min_match_threshold` — minimum keyword-match % required before running the tailoring step. Jobs below this are recorded in dedup state but not tailored
-- `tailoring.enable_ai_phrase_removal` — scrub common AI-generated phrasing (see `src/_vendor/prompts/refinement.py` for the blacklist)
+- `tailoring.enable_ai_phrase_removal` — scrub common AI-generated phrasing (see `src/_internal/prompts/refinement.py` for the blacklist)

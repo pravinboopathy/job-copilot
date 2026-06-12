@@ -1,6 +1,26 @@
-"""Prompt templates and blacklists for multi-pass resume refinement."""
+"""Wordlists for the AI-phrase scrubber.
 
-# AI Phrase Blacklist - Words and phrases that sound AI-generated
+Two exports consumed by ``src/adapters.py::remove_ai_phrases_text``:
+
+- ``AI_PHRASE_BLACKLIST`` — phrases that signal LLM-generated prose.
+- ``AI_PHRASE_REPLACEMENTS`` — keyed by the lowercased blacklist entry;
+  value is the substitution (empty string deletes the phrase).
+
+These lists are derived from Resume Matcher (Apache-2.0,
+https://github.com/srbhr/Resume-Matcher) at the snapshot point of the
+original fork. See ``NOTICES`` at the repo root for attribution.
+
+Local modification: the upstream maps ``--`` and ``---`` to ``, `` to
+treat them as em-dash substitutes. In LaTeX source (this tool's output
+format) ``--`` is the en-dash glyph and appears in legitimate date
+ranges like ``Jul 2024 -- Present``. Both have been removed from the
+blacklist to keep those typographic conventions intact. The Unicode
+em-dash ``—`` is still scrubbed.
+"""
+
+from __future__ import annotations
+
+
 AI_PHRASE_BLACKLIST: set[str] = {
     # Action verbs (overused in AI resume writing)
     "spearheaded",
@@ -61,13 +81,12 @@ AI_PHRASE_BLACKLIST: set[str] = {
     "due to the fact that",
     "in the event that",
     "in light of the fact that",
-    # Punctuation patterns
-    "\u2014",  # Em-dash
-    "---",
-    "--",  # Double hyphen often used as em-dash substitute
+    # Punctuation patterns. Unicode em-dash only; the LaTeX `--` / `---`
+    # entries from upstream were dropped to preserve en-dash date ranges.
+    "—",
 }
 
-# Replacements for AI phrases - maps AI phrase to simpler alternative
+
 AI_PHRASE_REPLACEMENTS: dict[str, str] = {
     # Action verb replacements
     "spearheaded": "led",
@@ -127,56 +146,6 @@ AI_PHRASE_REPLACEMENTS: dict[str, str] = {
     "due to the fact that": "because",
     "in the event that": "if",
     "in light of the fact that": "since",
-    # Punctuation replacements
-    "\u2014": ", ",  # Em-dash to comma
-    "---": ", ",
-    "--": ", ",
+    # Punctuation
+    "—": ", ",
 }
-
-
-# Prompt for injecting missing keywords into a resume
-KEYWORD_INJECTION_PROMPT = """Inject the following keywords into this resume where they can be naturally and TRUTHFULLY incorporated.
-
-CRITICAL RULES:
-1. Only add keywords where the master resume provides supporting evidence
-2. Do NOT add skills, technologies, or certifications not in the master resume
-3. Rephrase existing bullet points to include keywords - do not invent new content
-4. Maintain the exact same JSON structure
-5. Do not use em-dashes (—) or their variants (---, --)
-
-Keywords to inject (only if supported by master resume):
-{keywords_to_inject}
-
-Current tailored resume:
-{current_resume}
-
-Master resume (source of truth):
-{master_resume}
-
-Job description context:
-{job_description}
-
-Output the complete resume JSON with keywords naturally integrated. Return ONLY valid JSON."""
-
-
-# Prompt for validation and polish pass
-VALIDATION_POLISH_PROMPT = """Review and polish this resume content. Remove any AI-sounding language and ensure all content is truthful.
-
-REMOVE or REPLACE:
-- Buzzwords: "spearheaded", "synergy", "leverage", "orchestrated", etc.
-- Em-dashes (use commas or semicolons instead)
-- Overly formal language: "utilized" -> "used", "endeavored" -> "worked"
-- Generic filler: "in order to" -> "to"
-
-VERIFY:
-- All skills exist in the master resume
-- All certifications exist in the master resume
-- No fabricated metrics or achievements
-
-Resume to polish:
-{resume}
-
-Master resume (verify all claims against this):
-{master_resume}
-
-Output the polished resume JSON. Return ONLY valid JSON."""

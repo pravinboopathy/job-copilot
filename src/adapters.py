@@ -1,15 +1,21 @@
-"""Thin adapters bridging Resume Matcher's JSON-resume functions to plain text/LaTeX.
+"""Plain-text and LaTeX helpers for the tailoring pipeline.
 
-Resume Matcher's refiner operates on JSON resume dicts. This module reimplements
-the simple loops for plain-text inputs so the CLI can work directly with .tex files.
+Three groups of functions:
+
+- Keyword extraction (``extract_keywords``) — wraps the LLM JSON call.
+- Match scoring (``calculate_keyword_match_text``, ``analyze_keyword_gaps_text``)
+  — deterministic; no LLM. Used both for the pre-tailor gate and the
+  post-tailor report.
+- Output post-processing (``remove_ai_phrases_text``, ``capitalize_bullets``,
+  ``sanitize_input``) — deterministic regex passes that run after the LLM.
 """
 
 import re
 from typing import Any
 
-from ._vendor.llm import LLMConfig, complete_json
-from ._vendor.prompts.refinement import AI_PHRASE_BLACKLIST, AI_PHRASE_REPLACEMENTS
-from ._vendor.prompts.templates import EXTRACT_KEYWORDS_PROMPT
+from ._internal.llm import LLMConfig, complete_json
+from ._internal.prompts.refinement import AI_PHRASE_BLACKLIST, AI_PHRASE_REPLACEMENTS
+from ._internal.prompts.templates import EXTRACT_KEYWORDS_PROMPT
 
 # Prompt injection patterns — copied from improver.py:28-37 to avoid
 # importing the full improver module for 8 lines of regex.
