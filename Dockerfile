@@ -12,20 +12,13 @@ RUN apt-get update && apt-get install -y texlive-latex-extra \
 
 WORKDIR /app
 
-# Install backend dependency (tool imports from apps/backend)
-COPY apps/backend /app/apps/backend
-RUN pip install --no-cache-dir -e /app/apps/backend
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# Install tool dependencies
-COPY tools/job-tailor/requirements.txt /app/tools/job-tailor/requirements.txt
-RUN pip install --no-cache-dir -r /app/tools/job-tailor/requirements.txt
+COPY src /app/src
+COPY scripts /app/scripts
 
-# Copy tool source
-COPY tools/job-tailor/src /app/tools/job-tailor/src
-
-COPY tools/job-tailor/docker/start.sh /start.sh
+COPY docker/start.sh /start.sh
 RUN chmod +x /start.sh
-
-WORKDIR /app/tools/job-tailor
 
 ENTRYPOINT ["/start.sh"]

@@ -7,7 +7,7 @@
 #
 # Install on docker-jobs:
 #   crontab -e
-#   0 8 * * * /home/deploy/resume_tailor/tools/job-tailor/scripts/docker_cron.sh
+#   0 8 * * * /home/deploy/job-copilot/scripts/docker_cron.sh
 #
 # (The companion scripts/cron_run.sh is for the local-venv deployment.)
 set -e
@@ -22,7 +22,7 @@ mkdir -p data
   echo "=== $(date -Is) cron run start ==="
 } >> "$LOG"
 
-docker compose run --rm job-tailor run --source email  --notify >> "$LOG" 2>&1
-docker compose run --rm job-tailor run --source search --notify >> "$LOG" 2>&1
+docker compose run --rm job-copilot run --source email  --notify >> "$LOG" 2>&1
+docker compose run --rm job-copilot run --source search --notify >> "$LOG" 2>&1
 
 echo "=== $(date -Is) cron run end ===" >> "$LOG"

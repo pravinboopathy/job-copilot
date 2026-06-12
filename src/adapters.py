@@ -7,9 +7,9 @@ the simple loops for plain-text inputs so the CLI can work directly with .tex fi
 import re
 from typing import Any
 
-from app.llm import LLMConfig, complete_json
-from app.prompts.refinement import AI_PHRASE_BLACKLIST, AI_PHRASE_REPLACEMENTS
-from app.prompts.templates import EXTRACT_KEYWORDS_PROMPT
+from ._vendor.llm import LLMConfig, complete_json
+from ._vendor.prompts.refinement import AI_PHRASE_BLACKLIST, AI_PHRASE_REPLACEMENTS
+from ._vendor.prompts.templates import EXTRACT_KEYWORDS_PROMPT
 
 # Prompt injection patterns — copied from improver.py:28-37 to avoid
 # importing the full improver module for 8 lines of regex.

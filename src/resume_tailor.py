@@ -4,8 +4,8 @@ import logging
 import re
 from typing import Any
 
-from app.llm import LLMConfig, complete
-from app.prompts.templates import CRITICAL_TRUTHFULNESS_RULES
+from ._vendor.llm import LLMConfig, complete
+from ._vendor.prompts.templates import CRITICAL_TRUTHFULNESS_RULES
 
 from .adapters import sanitize_input
 from .models import JobPosting, TailorOutput

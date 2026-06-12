@@ -4,10 +4,10 @@
 
 set -e
 
-cd /Users/pravinboopathy/projects/resume_tailor/tools/job-tailor
+cd "$(dirname "$0")/.."
 
 # Activate environment
-source .venv/bin/activate 2>/dev/null || conda activate job-tailor 2>/dev/null
+source .venv/bin/activate 2>/dev/null || conda activate job-copilot 2>/dev/null
 
 # Connect VPN (optional — comment out if not using Surfshark)
 # surfshark-cli connect 2>/dev/null

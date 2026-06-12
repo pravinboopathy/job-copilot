@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from app.llm import LLMConfig
+from ._vendor.llm import LLMConfig
 
 from .adapters import (
     analyze_keyword_gaps_text,

@@ -1,0 +1,21 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Runtime state and outputs
+data/
+
+# Secrets and personal config (ship *.example versions)
+.env
+config/credentials.json
+config/token.json
+config/config.yaml
+wg0.conf
+
+# Editor/OS junk
+.DS_Store
+.idea/
+.vscode/
